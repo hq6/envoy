@@ -1,5 +1,9 @@
 #pragma once
 
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/channel.h>
+#include <google/protobuf/descriptor.h>
+
 #include "envoy/api/api.h"
 #include "envoy/buffer/buffer.h"
 #include "envoy/extensions/filters/http/grpc_json_transcoder/v3/transcoder.pb.h"
@@ -11,6 +15,7 @@
 #include "source/common/grpc/codec.h"
 #include "source/common/protobuf/protobuf.h"
 #include "source/extensions/filters/http/grpc_json_transcoder/transcoder_input_stream_impl.h"
+#include "source/extensions/filters/http/grpc_json_transcoder/proto_reflection_descriptor_database.h"
 
 #include "google/api/http.pb.h"
 #include "grpc_transcoding/path_matcher.h"
@@ -124,7 +129,17 @@ private:
                                         const google::api::HttpRule& http_rule,
                                         MethodInfoSharedPtr& method_info);
 
-  Protobuf::DescriptorPool descriptor_pool_;
+  /**
+   * Use gRPC reflection to initialize descriptor_pool_.
+   */
+  bool initializeProtosFromReflection(const std::string& uri);
+
+  /**
+   * Only set when protos are derived from reflection using
+   * descriptor_set.proto_descriptor_channel_uri.
+   */
+  std::unique_ptr<grpc::ProtoReflectionDescriptorDatabase> reflection_descriptor_database_;
+  std::unique_ptr<Protobuf::DescriptorPool> descriptor_pool_;
   google::grpc::transcoding::PathMatcherPtr<MethodInfoSharedPtr> path_matcher_;
   std::unique_ptr<google::grpc::transcoding::TypeHelper> type_helper_;
   Protobuf::util::JsonPrintOptions print_options_;

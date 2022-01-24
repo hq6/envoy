@@ -3,6 +3,10 @@
 #include <memory>
 #include <unordered_set>
 
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/channel.h>
+#include <google/protobuf/descriptor.h>
+
 #include "envoy/common/exception.h"
 #include "envoy/extensions/filters/http/grpc_json_transcoder/v3/transcoder.pb.h"
 #include "envoy/http/filter.h"
@@ -126,11 +130,19 @@ JsonTranscoderConfig::JsonTranscoderConfig(
             api.fileSystem().fileReadToEnd(proto_config.proto_descriptor()))) {
       throw EnvoyException("transcoding_filter: Unable to parse proto descriptor");
     }
+    descriptor_pool_ = std::make_unique<Protobuf::DescriptorPool>();
     break;
   case envoy::extensions::filters::http::grpc_json_transcoder::v3::GrpcJsonTranscoder::
       DescriptorSetCase::kProtoDescriptorBin:
     if (!descriptor_set.ParseFromString(proto_config.proto_descriptor_bin())) {
       throw EnvoyException("transcoding_filter: Unable to parse proto descriptor");
+    }
+    descriptor_pool_ = std::make_unique<Protobuf::DescriptorPool>();
+    break;
+  case envoy::extensions::filters::http::grpc_json_transcoder::v3::GrpcJsonTranscoder::
+      DescriptorSetCase::kProtoDescriptorChannelUri:
+    if (!initializeProtosFromReflection(proto_config.proto_descriptor_channel_uri())) {
+      throw EnvoyException("transcoding_filter: unable to load protos from proto uri");
     }
     break;
   default:
@@ -149,7 +161,7 @@ JsonTranscoderConfig::JsonTranscoderConfig(
 
   type_helper_ = std::make_unique<google::grpc::transcoding::TypeHelper>(
       Protobuf::util::NewTypeResolverForDescriptorPool(Grpc::Common::typeUrlPrefix(),
-                                                       &descriptor_pool_));
+                                                       descriptor_pool_.get()));
 
   PathMatcherBuilder<MethodInfoSharedPtr> pmb;
   // clang-format off
@@ -162,7 +174,7 @@ JsonTranscoderConfig::JsonTranscoderConfig(
   }
 
   for (const auto& service_name : proto_config.services()) {
-    auto service = descriptor_pool_.FindServiceByName(service_name);
+    auto service = descriptor_pool_->FindServiceByName(service_name);
     if (service == nullptr) {
       throw EnvoyException("transcoding_filter: Could not find '" + service_name +
                            "' in the proto descriptor");
@@ -228,13 +240,13 @@ JsonTranscoderConfig::JsonTranscoderConfig(
 }
 
 void JsonTranscoderConfig::addFileDescriptor(const Protobuf::FileDescriptorProto& file) {
-  if (descriptor_pool_.BuildFile(file) == nullptr) {
+  if (descriptor_pool_->BuildFile(file) == nullptr) {
     throw EnvoyException("transcoding_filter: Unable to build proto descriptor pool");
   }
 }
 
 void JsonTranscoderConfig::addBuiltinSymbolDescriptor(const std::string& symbol_name) {
-  if (descriptor_pool_.FindFileContainingSymbol(symbol_name) != nullptr) {
+  if (descriptor_pool_->FindFileContainingSymbol(symbol_name) != nullptr) {
     return;
   }
 
@@ -411,6 +423,21 @@ JsonTranscoderConfig::translateProtoMessageToJson(const Protobuf::Message& messa
   return ProtobufUtil::BinaryToJsonString(
       type_helper_->Resolver(), Grpc::Common::typeUrl(message.GetDescriptor()->full_name()),
       message.SerializeAsString(), json_out, print_options_);
+}
+
+bool JsonTranscoderConfig::initializeProtosFromReflection(const std::string& uri) {
+  std::shared_ptr<grpc::Channel> channel =
+    grpc::CreateChannel(uri, grpc::InsecureChannelCredentials());
+  reflection_descriptor_database_ = std::make_unique<grpc::ProtoReflectionDescriptorDatabase>(channel);
+  descriptor_pool_ = std::make_unique<Protobuf::DescriptorPool>(reflection_descriptor_database_.get());
+
+  // Calling GetServices causes the reflection_db to make a ReflectionRpc,
+  // helping us catch reflection failures early.
+  std::vector<std::string> services;
+  if (!reflection_descriptor_database_->GetServices(&services)) {
+    return false;
+  }
+  return true;
 }
 
 JsonTranscoderFilter::JsonTranscoderFilter(JsonTranscoderConfig& config) : config_(config) {}

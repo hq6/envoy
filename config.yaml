@@ -35,7 +35,7 @@ static_resources:
           - name: envoy.filters.http.grpc_json_transcoder
             typed_config:
                "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder
-               proto_descriptor_channel_uri: "localhost:50051"
+               proto_descriptor_cluster_name: "grpc_service"
                services: ["helloworld.Greeter"]
                print_options:
                  add_whitespace: true

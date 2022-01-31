@@ -14,8 +14,8 @@ envoy_extension_package()
 
 envoy_cc_library(
     name = "json_transcoder_filter_lib",
-    srcs = ["json_transcoder_filter.cc", "proto_reflection_descriptor_database.cc"],
-    hdrs = ["json_transcoder_filter.h", "proto_reflection_descriptor_database.h"],
+    srcs = ["json_transcoder_filter.cc"],
+    hdrs = ["json_transcoder_filter.h"],
     external_deps = [
         "path_matcher",
         "grpc",
@@ -29,6 +29,7 @@ envoy_cc_library(
         "//envoy/http:filter_interface",
         "//source/common/grpc:codec_lib",
         "//source/common/grpc:common_lib",
+        "//source/common/grpc:async_client_lib",
         "//source/common/http:headers_lib",
         "//source/common/protobuf",
         "//source/common/runtime:runtime_features_lib",

@@ -16,9 +16,13 @@ namespace {
 
 TEST(GrpcJsonTranscoderFilterConfigTest, ValidateFail) {
   NiceMock<Server::Configuration::MockFactoryContext> context;
+  envoy::extensions::filters::http::grpc_json_transcoder::v3::GrpcJsonTranscoder proto_config;
   EXPECT_THROW(GrpcJsonTranscoderFilterConfig().createFilterFactoryFromProto(
-                   envoy::extensions::filters::http::grpc_json_transcoder::v3::GrpcJsonTranscoder(),
-                   "stats", context),
+                   proto_config, "stats", context),
+               ProtoValidationException);
+  *proto_config.mutable_reflection_cluster_config()->mutable_cluster_name() = "unknown";
+  EXPECT_THROW(GrpcJsonTranscoderFilterConfig().createFilterFactoryFromProto(
+                   proto_config, "stats", context),
                ProtoValidationException);
 }
 

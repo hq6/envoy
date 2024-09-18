@@ -1,4 +1,4 @@
-FROM node:22.5-bookworm-slim@sha256:426d99333b9d35f568cc604b604ea484aef7d12b21e78a36c4bfbdf5cfa4afe2 AS node-base
+FROM node:22.9-bookworm-slim@sha256:f837a037e71c7bf7d6d0fe0e5246b7b7339b63c6a4d517ebda4ee097d03d259c AS node-base
 
 
 FROM node-base AS node-http-auth
